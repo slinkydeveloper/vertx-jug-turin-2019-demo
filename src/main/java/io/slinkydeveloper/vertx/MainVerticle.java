@@ -5,6 +5,9 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.kafka.client.consumer.KafkaConsumer;
+import io.vertx.kafka.client.producer.KafkaProducer;
+import io.vertx.kafka.client.producer.KafkaProducerRecord;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
@@ -14,12 +17,16 @@ import io.vertx.sqlclient.Tuple;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collector;
 
 public class MainVerticle extends AbstractVerticle {
 
   private PgPool pgClient;
+  private KafkaProducer<String, String> producer;
+  private KafkaConsumer<String, String> consumer;
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
@@ -33,6 +40,29 @@ public class MainVerticle extends AbstractVerticle {
 
     // Create the client pool
     this.pgClient = PgPool.pool(vertx, connectOptions, new PoolOptions());
+
+    Map<String, String> config = new HashMap<>();
+    config.put("bootstrap.servers", "localhost:9092");
+    config.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+    config.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+    config.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+    config.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+    config.put("group.id", "my_group");
+    config.put("auto.offset.reset", "earliest");
+    config.put("enable.auto.commit", "true");
+    config.put("acks", "1");
+    config.put("auto.commit.interval.ms", "100");
+
+    this.producer = KafkaProducer.create(vertx, config);
+    this.consumer = KafkaConsumer.create(vertx, config);
+
+    this.consumer.handler(record -> {
+      String[] rec = record.value().split("\\s");
+      int driver = Integer.parseInt(rec[0]);
+      int lap = Integer.parseInt(rec[1]);
+      String time = rec[2];
+      postTiming(driver, lap, time);
+    }).subscribe("timing_input");
 
     vertx
         .createHttpServer()
@@ -86,12 +116,15 @@ public class MainVerticle extends AbstractVerticle {
   }
   private void postTiming(int driver, int lap, String time) {
     pgClient.preparedQuery(
-        "INSERT INTO timing.time VALUES ($1, $2, $3)",
-        Tuple.of(lap, driver, time),
+        "INSERT INTO timing.time (driver_id, lap, time) VALUES ($1, $2, $3)",
+        Tuple.of(driver, lap, time),
         ar -> {
-          if (ar.succeeded())
+          if (ar.succeeded()) {
             System.out.format("Added timing for driver %d at lap %d with time %s\n", driver, lap, time);
-          else if (ar.failed())
+            producer.write(
+              KafkaProducerRecord.create("timing_output", String.format("%d %d %s", driver, lap, time))
+            );
+          } else if (ar.failed())
             System.out.println("Something went wrong! " + ar.cause());
         }
     );
