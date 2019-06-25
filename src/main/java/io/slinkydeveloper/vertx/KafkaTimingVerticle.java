@@ -2,8 +2,10 @@ package io.slinkydeveloper.vertx;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.json.JsonObject;
 import io.vertx.kafka.client.consumer.KafkaConsumer;
 import io.vertx.kafka.client.producer.KafkaProducer;
+import io.vertx.kafka.client.producer.KafkaProducerRecord;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,16 +35,26 @@ public class KafkaTimingVerticle extends AbstractVerticle {
 
     this.consumer.handler(record -> {
       String[] rec = record.value().split("\\s");
-      int driver = Integer.parseInt(rec[0]);
-      int lap = Integer.parseInt(rec[1]);
-      String time = rec[2];
-      //postTiming(driver, lap, time);
+      JsonObject timing = new JsonObject()
+        .put("driver", Integer.parseInt(rec[0]))
+        .put("lap", Integer.parseInt(rec[1]))
+        .put("time", rec[2]);
+      vertx.eventBus().send("add_timing.timingsapp", timing);
     }).subscribe("timing_input");
 
-    // TODO when new timing is added
-    //            producer.write(
-    //              KafkaProducerRecord.create("timing_output", String.format("%d %d %s", driver, lap, time))
-    //            );
+    vertx
+      .eventBus()
+      .<JsonObject>consumer("new_timing_event.timingsapp")
+      .handler(message ->
+        producer.write(
+          KafkaProducerRecord.create("timing_output", String.format(
+            "%d %d %s",
+            message.body().getInteger("driver"),
+            message.body().getInteger("lap"),
+            message.body().getString("time")
+          ))
+        )
+      );
 
   }
 }

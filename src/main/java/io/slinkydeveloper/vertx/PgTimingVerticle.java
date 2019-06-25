@@ -26,6 +26,32 @@ public class PgTimingVerticle extends AbstractVerticle {
 
     // Create the client pool
     this.pgClient = PgPool.pool(vertx, connectOptions, new PoolOptions());
+
+    vertx
+      .eventBus()
+      .consumer("get_timings.timingsapp")
+      .handler(message -> {
+        getAllTimings(ar -> {
+          if (ar.succeeded()) {
+            message.reply(ar.result());
+          } else {
+            message.fail(1, ar.cause().getMessage());
+            System.err.format("Something went wrong while retrieving all timings: %s", ar.cause().getMessage());
+          }
+        });
+      });
+
+    vertx
+      .eventBus()
+      .<JsonObject>consumer("add_timing.timingsapp")
+      .handler(message -> {
+        JsonObject timingEntry = message.body();
+        postTiming(
+          timingEntry.getInteger("driver"),
+          timingEntry.getInteger("lap"),
+          timingEntry.getString("time")
+        );
+      });
   }
 
   private void postTiming(int driver, int lap, String time) {
@@ -34,6 +60,15 @@ public class PgTimingVerticle extends AbstractVerticle {
       Tuple.of(driver, lap, time),
       ar -> {
         if (ar.succeeded()) {
+          vertx
+            .eventBus()
+            .publish(
+              "new_timing_event.timingsapp",
+              new JsonObject()
+                .put("driver", driver)
+                .put("lap", lap)
+                .put("time", time)
+            );
           System.out.format("Added timing for driver %d at lap %d with time %s\n", driver, lap, time);
         } else if (ar.failed())
           System.out.println("Something went wrong! " + ar.cause());

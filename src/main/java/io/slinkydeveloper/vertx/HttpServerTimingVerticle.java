@@ -4,6 +4,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 public class HttpServerTimingVerticle extends AbstractVerticle {
@@ -27,37 +28,35 @@ public class HttpServerTimingVerticle extends AbstractVerticle {
 
     if (req.method() == HttpMethod.GET) {
       // Handle GET /timing
-      //TODO
-      //       getAllTimings(ar -> {
-      //        if (ar.succeeded()) {
-      //          req
-      //            .response()
-      //            .setStatusCode(200)
-      //            .putHeader("content-type", "application/json")
-      //            .end(ar.result().toBuffer());
-      //        } else {
-      //          System.out.println("Error while retrieving stuff: " + ar.cause());
-      //          req
-      //            .response()
-      //            .setStatusCode(500)
-      //            .end();
-      //        }
-      //      });
+      vertx
+        .eventBus()
+        .<JsonArray>request("get_timings.timingsapp", null, ar -> {
+          if (ar.succeeded()) {
+            req
+              .response()
+              .setStatusCode(200)
+              .putHeader("content-type", "application/json")
+              .end(ar.result().body().toBuffer());
+          } else {
+            System.out.println("Error while retrieving stuff: " + ar.cause());
+            req
+              .response()
+              .setStatusCode(500)
+              .end();
+          }
+        });
     } else if (req.method() == HttpMethod.POST) {
       // Handle POST /timing
-      // TODO
-      //      req.bodyHandler(bodyBuf -> {
-      //        JsonObject obj = bodyBuf.toJsonObject();
-      //        postTiming(
-      //          obj.getInteger("driver"),
-      //          obj.getInteger("lap"),
-      //          obj.getString("time")
-      //        );
-      //        req
-      //          .response()
-      //          .setStatusCode(202)
-      //          .end();
-      //      });
+      req.bodyHandler(bodyBuf -> {
+        JsonObject obj = bodyBuf.toJsonObject();
+        vertx
+          .eventBus()
+          .send("add_timing.timingsapp", obj);
+        req
+          .response()
+          .setStatusCode(202)
+          .end();
+      });
     } else {
       req.response().setStatusCode(405).end();
     }
