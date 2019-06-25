@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS timing.Driver (
 
 CREATE TABLE IF NOT EXISTS timing.Time (
     lap INTEGER NOT NULL,
-    driver_id INTEGER NOT NULL,
+    driver_id INTEGER NOT NULL REFERENCES timing.Driver(id),
     time VARCHAR(100) NOT NULL
 );
