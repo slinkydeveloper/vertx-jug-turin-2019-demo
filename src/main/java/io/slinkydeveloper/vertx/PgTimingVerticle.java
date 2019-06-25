@@ -83,7 +83,7 @@ public class PgTimingVerticle extends AbstractVerticle {
         JsonArray::new,
         (ja, row) -> ja.add(
           new JsonObject()
-            .put("driver_id", row.getInteger("driver_id"))
+            .put("driver", row.getInteger("driver_id"))
             .put("lap", row.getInteger("lap"))
             .put("time", row.getString("time"))
         ),

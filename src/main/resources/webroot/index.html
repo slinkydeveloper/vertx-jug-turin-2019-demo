@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timings app</title>
+  <script src="http://cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vertx/3.7.0/vertx-eventbus.min.js"></script>
+
+</head>
+<body>
+
+  <h1>Timing app</h1>
+
+  <ul id="timings">
+  </ul>
+
+  <script>
+    var listElement = document.getElementById("timings");
+    var eb = new EventBus('http://localhost:8080/eventbus');
+    eb.onopen = function () {
+
+      eb.send('get_timings.timingsapp', {}, (error, message) => {
+        if (error) {
+          console.err(JSON.stringify(error));
+        } else {
+          message.body.forEach(addListItem);
+        }
+      });
+
+      eb.registerHandler('new_timing_event.timingsapp', (error, message) => {
+        if (error) {
+          console.err(JSON.stringify(error));
+        } else {
+          addListItem(message.body);
+        }
+      });
+
+    };
+
+    function addListItem(item) {
+      var newElement = document.createElement("li");
+      newElement.appendChild(document.createTextNode(`Driver: ${item.driver}, Lap: ${item.lap}, Time: ${item.time}`));
+      if (listElement.hasChildNodes()) {
+        listElement.insertBefore(newElement, listElement.childNodes[0]);
+      } else {
+        listElement.appendChild(newElement);
+      }
+    }
+
+  </script>
+
+</body>
+</html>

@@ -4,8 +4,12 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.bridge.PermittedOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.StaticHandler;
+import io.vertx.ext.web.handler.sockjs.BridgeOptions;
+import io.vertx.ext.web.handler.sockjs.SockJSHandler;
 
 public class HttpServerTimingVerticle extends AbstractVerticle {
 
@@ -48,6 +52,17 @@ public class HttpServerTimingVerticle extends AbstractVerticle {
           .setStatusCode(202)
           .end();
       });
+
+    SockJSHandler sockJSHandler = SockJSHandler.create(vertx);
+    sockJSHandler.bridge(
+      new BridgeOptions()
+        .addInboundPermitted(new PermittedOptions().setAddress("get_timings.timingsapp"))
+        .addOutboundPermitted(new PermittedOptions().setAddress("new_timing_event.timingsapp"))
+    );
+
+    router.route("/eventbus/*").handler(sockJSHandler);
+
+    router.route().handler(StaticHandler.create());
 
     vertx
       .createHttpServer()
