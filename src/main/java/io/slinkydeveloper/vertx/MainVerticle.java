@@ -32,7 +32,7 @@ public class MainVerticle extends AbstractVerticle {
         .setPassword("postgres");
 
     // Create the client pool
-    this.pgClient = PgPool.pool(connectOptions, new PoolOptions());
+    this.pgClient = PgPool.pool(vertx, connectOptions, new PoolOptions());
 
     vertx
         .createHttpServer()
@@ -51,17 +51,43 @@ public class MainVerticle extends AbstractVerticle {
 
     if (req.method() == HttpMethod.GET) {
       // Handle GET /timing
+      getAllTimings(ar -> {
+        if (ar.succeeded()) {
+          req
+            .response()
+            .setStatusCode(200)
+            .putHeader("content-type", "application/json")
+            .end(ar.result().toBuffer());
+        } else {
+          System.out.println("Error while retrieving stuff: " + ar.cause());
+          req
+            .response()
+            .setStatusCode(500)
+            .end();
+        }
+      });
     } else if (req.method() == HttpMethod.POST) {
       // Handle POST /timing
+      req.bodyHandler(bodyBuf -> {
+        JsonObject obj = bodyBuf.toJsonObject();
+        postTiming(
+          obj.getInteger("driver"),
+          obj.getInteger("lap"),
+          obj.getString("time")
+        );
+        req
+          .response()
+          .setStatusCode(202)
+          .end();
+      });
     } else {
       req.response().setStatusCode(405).end();
     }
   }
-
   private void postTiming(int driver, int lap, String time) {
     pgClient.preparedQuery(
         "INSERT INTO timing.time VALUES ($1, $2, $3)",
-        Tuple.of(driver, lap, time),
+        Tuple.of(lap, driver, time),
         ar -> {
           if (ar.succeeded())
             System.out.format("Added timing for driver %d at lap %d with time %s\n", driver, lap, time);
